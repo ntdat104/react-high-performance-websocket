@@ -101,14 +101,15 @@ class WebsocketService {
         this.params[symbol] = 1;
       }
     });
-
-    this.queueMessage.push(
-      JSON.stringify({
-        method: "SUBSCRIBE",
-        params: subSymbol,
-        id: 1,
-      })
-    );
+    if (subSymbol.length > 0) {
+      this.queueMessage.push(
+        JSON.stringify({
+          method: "SUBSCRIBE",
+          params: subSymbol,
+          id: 1,
+        })
+      );
+    }
   }
 
   public unsubscribe(id: string) {
