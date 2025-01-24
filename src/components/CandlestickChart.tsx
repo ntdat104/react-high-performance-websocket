@@ -94,12 +94,7 @@ const CandlestickChart: React.FC<Props> = (props) => {
 
     seriesRef.current = series;
 
-    series.setData(
-      ohlcv?.map((item) => ({
-        ...item,
-        time: (item.time + 7 * 60 * 60) as Time,
-      }))
-    );
+    series.setData(ohlcv);
     chart.timeScale().fitContent();
 
     let lastBar: any = null;
