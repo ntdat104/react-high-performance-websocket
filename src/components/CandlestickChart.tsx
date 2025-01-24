@@ -1,10 +1,12 @@
 import { useAppSelector } from "@/redux/hooks";
+import axios from "axios";
 import {
   ColorType,
   createChart,
   CrosshairMode,
   IChartApi,
   ISeriesApi,
+  Time,
 } from "lightweight-charts";
 import React from "react";
 
@@ -15,7 +17,7 @@ interface Props {
 }
 
 const CandlestickChart: React.FC<Props> = (props) => {
-  const { ticker, interval = "1m", limit = 100 } = props;
+  const { ticker, interval = "1m", limit = 50 } = props;
   const ws = useAppSelector((state) => state.websocket.ws);
   const chartContainerRef = React.useRef<HTMLDivElement>(null);
   const chartRef = React.useRef<IChartApi>();
@@ -26,19 +28,23 @@ const CandlestickChart: React.FC<Props> = (props) => {
   React.useEffect(() => {
     const apiUrl = `https://api.binance.com/api/v3/uiKlines?symbol=${ticker}&timeZone=7&interval=${interval}&limit=${limit}`;
     (async () => {
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-      const ohlcvData = data.map((d: any) => ({
-        startTime: d[0],
-        time: d[0],
-        open: Number(d[1]),
-        high: Number(d[2]),
-        low: Number(d[3]),
-        close: Number(d[4]),
-        volume: Number(d[5]),
-        endTime: d[6],
-      }));
-      setOhlcv(ohlcvData);
+      try {
+        const response = await axios.get(apiUrl);
+        const data = response.data;
+        const ohlcvData = data.map((d: any) => ({
+          startTime: d[0],
+          time: d[0] / 1000,
+          open: Number(d[1]),
+          high: Number(d[2]),
+          low: Number(d[3]),
+          close: Number(d[4]),
+          volume: Number(d[5]),
+          endTime: d[6],
+        }));
+        setOhlcv(ohlcvData);
+      } catch (error) {
+        console.error(error);
+      }
     })();
   }, []);
 
@@ -48,6 +54,7 @@ const CandlestickChart: React.FC<Props> = (props) => {
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
+        attributionLogo: false,
         textColor: "white",
         background: { type: ColorType.Solid, color: "transparent" },
       },
@@ -87,7 +94,12 @@ const CandlestickChart: React.FC<Props> = (props) => {
 
     seriesRef.current = series;
 
-    series.setData(ohlcv);
+    series.setData(
+      ohlcv?.map((item) => ({
+        ...item,
+        time: (item.time + 7 * 60 * 60) as Time,
+      }))
+    );
     chart.timeScale().fitContent();
 
     let lastBar: any = null;
@@ -103,7 +115,7 @@ const CandlestickChart: React.FC<Props> = (props) => {
       ) {
         const kline = message?.data?.k;
         const bar = {
-          time: kline.t,
+          time: (Number(kline.t) / 1000) as Time,
           open: parseFloat(kline.o),
           high: parseFloat(kline.h),
           low: parseFloat(kline.l),
