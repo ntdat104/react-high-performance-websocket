@@ -75,7 +75,7 @@ class WebsocketService {
         const request = this.queueMessage.shift();
         if (request) this.ws.send(request);
       }
-    }, 100);
+    }, 400);
   }
 
   public addSubscriber(id: string) {
