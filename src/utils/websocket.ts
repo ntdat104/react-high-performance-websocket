@@ -40,7 +40,17 @@ class WebsocketService {
 
     this.ws = new WebSocket(this.url, this.protocols);
 
-    this.ws.addEventListener("open", () => {});
+    this.ws.addEventListener("open", () => {
+      if (Object.keys(this.params).length > 0) {
+        this.ws?.send(
+          JSON.stringify({
+            method: "SUBSCRIBE",
+            params: Object.keys(this.params),
+            id: 1,
+          })
+        );
+      }
+    });
 
     this.ws.addEventListener("error", (_: Event) => {});
 
@@ -58,29 +68,33 @@ class WebsocketService {
     });
 
     setInterval(() => {
-      if (this.ws?.readyState === ReadyStateEnum.OPEN) {
+      if (
+        this.ws?.readyState === ReadyStateEnum.OPEN &&
+        this.queueMessage.length > 0
+      ) {
         const request = this.queueMessage.shift();
         if (request) this.ws.send(request);
       }
-    }, 300);
+    }, 100);
   }
 
   public addSubscriber(id: string) {
+    const uuid = `${id}_${crypto.randomUUID()}`;
     const subscriber: Subscriber = {
-      id,
+      id: uuid,
       params: [],
       callback: () => null,
     };
-    this.subscribers[id] = subscriber;
+    this.subscribers[uuid] = subscriber;
     return {
-      send: (symbols: string[]) => this.send(id, symbols),
+      send: (symbols: string[]) => this.send(uuid, symbols),
       subscribe: (callback: (ev: MessageEvent<any>) => void) => {
-        if (this.subscribers && this.subscribers[id]) {
-          this.subscribers[id].callback = callback;
+        if (this.subscribers && this.subscribers[uuid]) {
+          this.subscribers[uuid].callback = callback;
         }
       },
       unsubscribe: () => {
-        this.unsubscribe(id);
+        this.unsubscribe(uuid);
       },
     };
   }
@@ -88,7 +102,11 @@ class WebsocketService {
   private send(id: string, symbols: string[]) {
     if (!this.subscribers[id]) return;
     const params = this.subscribers[id].params;
-    const newSymbols = symbols.filter((symbol) => !params.includes(symbol));
+    const paramsMap = new Map();
+    params.forEach((param) => {
+      paramsMap.set(param, true);
+    });
+    const newSymbols = symbols.filter((symbol) => !paramsMap.has(symbol));
     if (newSymbols.length === 0) return;
 
     this.subscribers[id].params = params.concat(newSymbols);
@@ -118,19 +136,21 @@ class WebsocketService {
     const unsubSymbols: string[] = [];
     params.forEach((symbol) => {
       if (this.params[symbol] > 1) {
-        this.params[symbol] = this.params[symbol] - 1;
+        this.params[symbol] -= 1;
       } else {
         unsubSymbols.push(symbol);
         delete this.params[symbol];
       }
     });
-    this.queueMessage.push(
-      JSON.stringify({
-        method: "UNSUBSCRIBE",
-        params: unsubSymbols,
-        id: 1,
-      })
-    );
+    if (unsubSymbols.length > 0) {
+      this.queueMessage.push(
+        JSON.stringify({
+          method: "UNSUBSCRIBE",
+          params: unsubSymbols,
+          id: 1,
+        })
+      );
+    }
     delete this.subscribers[id];
   }
 }
